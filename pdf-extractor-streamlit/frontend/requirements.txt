@@ -1,0 +1,11 @@
+streamlit
+streamlit-drawable-canvas
+PyMuPDF
+pillow
+pandas
+openpyxl
+pytesseract
+opencv-python
+plotly
+requests
+numpy

@@ -1,0 +1,417 @@
+# Insights Generation - Troubleshooting Guide
+
+## Why Insights Aren't Being Generated
+
+If insights are not showing up in the **📊 Insights** tab, follow these steps:
+
+---
+
+## Quick Diagnostic Checklist
+
+- [ ] **Table extracted successfully?** Check "📊 Data Viewer" tab - should show rows/columns
+- [ ] **Empty table extracted?** Status shows "Empty" instead of "Ready"
+- [ ] **No button click?** Insights now auto-generate, but you can refresh with button
+- [ ] **Backend running?** Check terminal for uvicorn errors
+- [ ] **Valid table data?** Rows should contain dictionaries with column names
+
+---
+
+## Common Issues & Solutions
+
+### Issue 1: "No data available. Extract data first."
+
+**Cause:** No files extracted in session
+
+**Solution:**
+1. Go to **📤 Upload & Extract** tab
+2. Upload an image with a table
+3. Click **🔍 Extract Data**
+4. Wait for "✅ Extracted..." message
+5. Return to **📊 Insights** tab
+
+---
+
+### Issue 2: Status Shows "Empty"
+
+**Cause:** Table extraction returned empty results
+
+**What happened:**
+- OCR didn't find text, OR
+- Table detection failed, OR
+- Image quality was poor
+
+**Solution:**
+1. Check **📊 Data Viewer** tab
+2. Expand **🔍 Debug Info** section
+3. Look at:
+   - `Detection Status`: Why table wasn't found
+   - `OCR Text Length`: If 0, OCR failed
+   - `Raw Lines Found`: If 0, no text detected
+4. **Try:**
+   - Use higher quality image (300+ DPI)
+   - Use "Manual Region Selection" mode
+   - Crop to just the table area
+   - Ensure table has clear structure
+
+---
+
+### Issue 3: Insights Show Partial Data
+
+**Cause:** Some insight calculations might fail silently
+
+**What you'll see:**
+- Statistics ✅ but no trends
+- Categories ✅ but no quality score
+- Some sections missing
+
+**Why:**
+- Table format incompatible
+- No numeric columns (no trends)
+- Data type mismatch
+- Edge case in parsing
+
+**Solution:**
+1. Check **🔍 Debug Information** section in Insights tab
+2. Look for:
+   - `Table Type`: Should be list of dicts
+   - `First Row`: Should show column structure
+3. If shows error, check table format
+
+---
+
+### Issue 4: "Error generating insights: ..."
+
+**Cause:** Exception during insight generation
+
+**Error message** appears in red
+
+**Why this happens:**
+- Incompatible table format
+- All NaN/null values
+- Column data type issues
+- DataFrame conversion failed
+
+**Solution:**
+1. Click **Refresh** button to retry
+2. Check **Debug Information** section
+3. Verify table has:
+   - At least 2 rows
+   - At least 1 column
+   - Valid data (not all empty)
+
+---
+
+## Understanding Insight Sections
+
+### 📈 Statistics
+Shows basic table info:
+- Total Rows: Count of data rows
+- Columns: Number of columns
+- Total Cells: Rows × Columns
+- Numeric Summary: Min, Max, Mean, Median, Sum
+
+**Why empty:** No data extracted
+
+### 🏆 Top Categories
+Shows most common values in a column
+
+**Why empty:** 
+- No categorical (non-numeric) columns
+- All values are unique
+- Single row only
+
+**Fix:** Extract table with text columns (names, categories, labels)
+
+### 📊 Trends
+Shows if data increasing/decreasing over time
+
+**Why empty:**
+- No numeric columns
+- Not enough data points (need 2+)
+- All values identical
+- Values are text, not numbers
+
+**Fix:** Extract table with numeric values that vary
+
+### ✅ Data Quality
+Shows quality metrics (0-100%)
+
+**Metrics:**
+- **Completeness:** % of non-empty cells
+- **Consistency:** % of columns with uniform data type
+- **Uniqueness:** % of unique rows vs duplicates
+
+**Why showing 0%:** Probably all NaN or empty data
+
+### 🚨 Anomalies
+Shows outliers and unusual values
+
+**Detected anomalies:**
+- **Outliers:** Values outside normal range (IQR method)
+- **Duplicates:** Repeated rows
+- **Missing values:** NaN/null cells
+
+**Why empty:** All values are normal, no anomalies
+
+---
+
+## How to Get Better Insights
+
+### 1. Extract Quality Tables
+
+Good table structure:
+```
+Name      Q1    Q2    Q3    Q4
+Sales     100   120   150   180
+Profit    20    25    30    35
+Growth    15%   20%   25%   28%
+```
+
+Bad structure:
+```
+Some random text
+Sales info: We had 100 in Q1
+Also 120 in Q2
+```
+
+### 2. Ensure Numeric Data for Trends
+
+Table with trends:
+```
+Month   Revenue   Cost   Profit
+Jan     5000      3000   2000
+Feb     6000      3200   2800
+Mar     7500      3500   4000
+```
+
+Table without trends:
+```
+Product   Price   Status
+Widget    $9.99   Active
+Gadget    $19.99  Inactive
+```
+
+### 3. Include Categorical Data
+
+For categories:
+```
+Region    Category    Value
+North     A           100
+South     B           150
+East      A           120
+North     B           90
+```
+
+### 4. Multiple Rows
+
+Minimum for insights:
+- **3+ rows** for trends
+- **5+ rows** for meaningful categories
+- **2+ rows** for any analysis
+
+---
+
+## Data Format Requirements
+
+### Table Format (List of Dicts)
+
+**Expected by backend:**
+```python
+[
+  {"Label": "North", "Q1": 100, "Q2": 120, "Q3": 150},
+  {"Label": "South", "Q1": 150, "Q2": 180, "Q3": 210},
+  {"Label": "East", "Q1": 120, "Q2": 145, "Q3": 175},
+]
+```
+
+**Generated by extractor:**
+```python
+# From extract_table_from_image():
+"cleaned_table": [
+  {"Label": "Row1", "Col1": value1, "Col2": value2},
+  {"Label": "Row2", "Col1": value1, "Col2": value2},
+]
+```
+
+### What Goes Wrong
+
+- **Mixed types:** `{"Col": "text123"}` - Can't determine if text or number
+- **All strings:** `{"Name": "A", "Value": "hundred"}` - No numeric analysis
+- **Missing headers:** Table without column names
+- **Single row:** Not enough data for trends
+
+---
+
+## Debug Information
+
+When insights fail, expand **🔍 Debug Information** to see:
+
+```
+Error: [Specific error message]
+Table Type: <class 'list'>
+Table Length: 3
+First Row Type: <class 'dict'>
+First Row: {'Label': 'North', 'Q1': 100, 'Q2': 120}
+```
+
+**Interpreting:**
+
+| Field | Good | Bad |
+|-------|------|-----|
+| Table Type | `list` | `str`, `None` |
+| Table Length | > 2 | 0, 1 |
+| First Row Type | `dict` | `list`, `str` |
+| First Row | Has keys | Empty |
+
+---
+
+## Manual Testing
+
+### Test 1: Simple Table
+
+Upload this table structure:
+```
+Product  Q1   Q2   Q3
+Sales    100  120  150
+```
+
+**Should generate:**
+- ✅ Statistics (3 rows, 3 columns)
+- ✅ Trends (increasing from 100→150)
+- ✅ Quality score
+
+### Test 2: Categories
+
+Upload:
+```
+Region  Value
+North   100
+South   150
+North   120
+South   110
+```
+
+**Should generate:**
+- ✅ Top Categories (North: 2, South: 2)
+- ✅ Statistics
+- ✅ Quality score
+
+### Test 3: Edge Cases
+
+Upload single row - should show:
+- ✅ Statistics only
+- ⚠️ No trends (need 2+ rows)
+- ✅ Quality score
+
+---
+
+## Advanced Debugging
+
+### Check OCR Output
+
+1. Go to **📊 Data Viewer** tab
+2. Find extracted file
+3. Expand **🔤 Raw OCR Text**
+4. Verify table text is captured correctly
+
+**If OCR missing:**
+- Image quality poor
+- Tesseract not installed
+- Check backend logs
+
+### Check Table Format
+
+In browser developer console (F12):
+```javascript
+// Check what data was extracted
+JSON.stringify(sessionData, null, 2)
+```
+
+**Should show:**
+```json
+[
+  {"Label": "...", "Col1": 0, "Col2": 0},
+  ...
+]
+```
+
+### Check Backend Logs
+
+In uvicorn terminal:
+```
+POST /generate_summary
+Summary generation failed: ...
+```
+
+**Common errors:**
+- `Empty dataframe`
+- `No numeric columns`
+- `Type conversion failed`
+
+---
+
+## Performance Notes
+
+Insights generation is:
+- ✅ Fast (< 1 second for most tables)
+- ✅ Auto-generated (shows immediately)
+- ✅ Cached (doesn't regenerate on tab switch)
+- ✅ Refreshable (click button to regenerate)
+
+---
+
+## FAQ
+
+**Q: Do insights auto-generate?**
+A: Yes! Insights are now generated automatically when you view the tab.
+
+**Q: Why is my quality score low?**
+A: Check:
+- Are there many empty cells? → Completeness
+- Do columns have mixed types? → Consistency
+- Are there duplicate rows? → Uniqueness
+
+**Q: Can I extract charts and get insights?**
+A: Charts are detected separately. Use:
+- **📉 Charts** tab for chart data
+- **📊 Insights** tab for table insights
+
+**Q: Why no trends detected?**
+A: Need:
+- At least 1 numeric column
+- At least 2 rows
+- Values must be actual numbers (not text)
+
+**Q: How are anomalies detected?**
+A: Using IQR (Interquartile Range) method:
+- Values outside Q1 - 1.5×IQR to Q3 + 1.5×IQR = outlier
+
+**Q: Can I export insights?**
+A: Currently displayed in UI. Improvements planned:
+- Export as PDF report
+- Download as JSON
+- Share as HTML
+
+---
+
+## Next Steps
+
+1. **Extract a simple table** - Start with basic 3×3 table
+2. **View insights** - Go to **📊 Insights** tab
+3. **Check each section** - Verify all metrics show
+4. **Test with real data** - Use your actual documents
+5. **Adjust if needed** - Use sensitivity/settings
+
+---
+
+## Support
+
+If insights still aren't working:
+
+1. **Check terminal** for backend errors
+2. **Look at debug info** in UI for data format
+3. **Try test table** to isolate problem
+4. **Review OCR output** to ensure text captured
+5. **Verify table format** matches expected structure
+
+**Happy analyzing!** 📊
